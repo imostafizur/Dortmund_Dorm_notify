@@ -1,24 +1,6 @@
 {
-  "name": "STWDO Dorm Alert → Telegram (Import-Safe + Test Mode)",
+  "name": "STWDO Dorm Alert (Stable Version)",
   "nodes": [
-    {
-      "parameters": {},
-      "id": "manualTrigger",
-      "name": "Manual Trigger (TEST NOW)",
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
-      "position": [220, 160]
-    },
-    {
-      "parameters": {
-        "jsCode": "return [{ json: { mode: 'TEST' } }];"
-      },
-      "id": "setTestMode",
-      "name": "Set Mode = TEST",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [440, 160]
-    },
     {
       "parameters": {
         "triggerTimes": {
@@ -31,49 +13,11 @@
           ]
         }
       },
-      "id": "cron",
+      "id": "cron1",
       "name": "Cron (every 5 min)",
       "type": "n8n-nodes-base.cron",
       "typeVersion": 1,
-      "position": [220, 360]
-    },
-    {
-      "parameters": {
-        "jsCode": "return [{ json: { mode: 'LIVE' } }];"
-      },
-      "id": "setLiveMode",
-      "name": "Set Mode = LIVE",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [440, 360]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "string": [
-            {
-              "value1": "={{$json.mode}}",
-              "operation": "equal",
-              "value2": "TEST"
-            }
-          ]
-        }
-      },
-      "id": "ifTest",
-      "name": "IF Mode is TEST?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [660, 260]
-    },
-    {
-      "parameters": {
-        "jsCode": "return [\n  {\n    json: {\n      source: 'TEST',\n      offers: [\n        {\n          title: 'TEST OFFER (Fake) - import check',\n          url: 'https://www.stwdo.de/wohnen/aktuelle-wohnangebote/test'\n        }\n      ]\n    }\n  }\n];"
-      },
-      "id": "fakeOffer",
-      "name": "Create Fake Offer (TEST)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [900, 140]
+      "position": [200, 300]
     },
     {
       "parameters": {
@@ -84,205 +28,114 @@
           "parameter": [
             {
               "name": "User-Agent",
-              "value": "Mozilla/5.0 (n8n; STWDO dorm checker)"
-            },
-            {
-              "name": "Accept-Language",
-              "value": "de-DE,de;q=0.9,en;q=0.8"
-            },
-            {
-              "name": "Accept",
-              "value": "text/html,application/xhtml+xml"
+              "value": "Mozilla/5.0"
             }
           ]
         }
       },
-      "id": "fetchPage",
-      "name": "Fetch STWDO page (LIVE)",
+      "id": "http1",
+      "name": "Fetch STWDO",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [900, 420]
+      "position": [420, 300]
     },
     {
       "parameters": {
-        "jsCode": "const html = $json.body || '';\nconst base = 'https://www.stwdo.de';\n\n// Extract offer links like /wohnen/aktuelle-wohnangebote/<something>\nconst linkRegex = /href\\s*=\\s*\"(\\/wohnen\\/aktuelle-wohnangebote\\/[^\"]+)\"/gi;\nconst links = new Set();\nlet m;\nwhile ((m = linkRegex.exec(html)) !== null) {\n  const path = m[1];\n  if (path === '/wohnen/aktuelle-wohnangebote') continue;\n  links.add(base + path);\n}\n\nconst offers = Array.from(links).map((url) => ({\n  title: 'STWDO Wohnangebot',\n  url\n}));\n\nreturn [{ json: { source: 'LIVE', offers } }];"
+        "jsCode": "const html = ($json.body || '').slice(0, 50000);\n\nconst base = 'https://www.stwdo.de';\nconst regex = /href\\s*=\\s*\"(\\/wohnen\\/aktuelle-wohnangebote\\/[^\"]+)\"/gi;\n\nconst found = new Set();\nlet match;\n\nwhile ((match = regex.exec(html)) !== null) {\n  const path = match[1];\n  if (path !== '/wohnen/aktuelle-wohnangebote') {\n    found.add(base + path);\n  }\n}\n\nconst data = getWorkflowStaticData('global');\nif (!data.seen) data.seen = {};\n\nconst newOffers = [];\n\nfor (const url of found) {\n  if (!data.seen[url]) {\n    data.seen[url] = true;\n    newOffers.push({ url });\n  }\n}\n\nreturn [{ json: { count: newOffers.length, offers: newOffers } }];"
       },
-      "id": "parseOffers",
-      "name": "Parse offers (LIVE)",
+      "id": "code1",
+      "name": "Parse + Filter New",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1120, 420]
-    },
-    {
-      "parameters": {
-        "jsCode": "const data = getWorkflowStaticData('global');\nif (!data.seenUrls) data.seenUrls = {};\n\nconst offers = $json.offers || [];\nconst newOnes = [];\n\nfor (const o of offers) {\n  if (!o || !o.url) continue;\n  if (!data.seenUrls[o.url]) {\n    newOnes.push(o);\n    data.seenUrls[o.url] = new Date().toISOString();\n  }\n}\n\nreturn [{ json: { source: $json.source, newCount: newOnes.length, newOffers: newOnes } }];"
-      },
-      "id": "filterNew",
-      "name": "Filter only NEW offers",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1340, 260]
+      "position": [650, 300]
     },
     {
       "parameters": {
         "conditions": {
           "number": [
             {
-              "value1": "={{$json.newCount}}",
+              "value1": "={{$json.count}}",
               "operation": "larger",
               "value2": 0
             }
           ]
         }
       },
-      "id": "ifAnyNew",
-      "name": "Any NEW offers?",
+      "id": "if1",
+      "name": "If New Offers?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1560, 260]
+      "position": [880, 300]
     },
     {
       "parameters": {
         "operation": "sendMessage",
-        "chatId": "PUT_CHAT_ID_FOR_BOT_1",
-        "text": "={{'🏠 ' + ($json.source === 'TEST' ? 'TEST MODE' : 'NEW') + ' STWDO offer(s): ' + $json.newCount + \"\\n\\n\" + ($json.newOffers || []).map((o, i) => `${i+1}) ${o.title}\\n${o.url}`).join(\"\\n\\n\") + \"\\n\\nListing: https://www.stwdo.de/wohnen/aktuelle-wohnangebote\"}}"
+        "chatId": "PUT_CHAT_ID_BOT_1",
+        "text": "={{'🏠 NEW STWDO DORM AVAILABLE!\\n\\n' + ($json.offers || []).map(o => o.url).join('\\n')}}"
       },
       "id": "tg1",
-      "name": "Telegram 1 - Notify",
+      "name": "Telegram 1",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1,
-      "position": [1780, 180]
+      "position": [1100, 220]
     },
     {
       "parameters": {
         "operation": "sendMessage",
-        "chatId": "PUT_CHAT_ID_FOR_BOT_2",
-        "text": "={{'🏠 ' + ($json.source === 'TEST' ? 'TEST MODE' : 'NEW') + ' STWDO offer(s): ' + $json.newCount + \"\\n\\n\" + ($json.newOffers || []).map((o, i) => `${i+1}) ${o.title}\\n${o.url}`).join(\"\\n\\n\") + \"\\n\\nListing: https://www.stwdo.de/wohnen/aktuelle-wohnangebote\"}}"
+        "chatId": "PUT_CHAT_ID_BOT_2",
+        "text": "={{'🏠 NEW STWDO DORM AVAILABLE!\\n\\n' + ($json.offers || []).map(o => o.url).join('\\n')}}"
       },
       "id": "tg2",
-      "name": "Telegram 2 - Notify",
+      "name": "Telegram 2",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1,
-      "position": [1780, 340]
+      "position": [1100, 380]
     }
   ],
   "connections": {
-    "Manual Trigger (TEST NOW)": {
-      "main": [
-        [
-          {
-            "node": "Set Mode = TEST",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Set Mode = TEST": {
-      "main": [
-        [
-          {
-            "node": "IF Mode is TEST?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Cron (every 5 min)": {
       "main": [
         [
           {
-            "node": "Set Mode = LIVE",
+            "node": "Fetch STWDO",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Set Mode = LIVE": {
+    "Fetch STWDO": {
       "main": [
         [
           {
-            "node": "IF Mode is TEST?",
+            "node": "Parse + Filter New",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "IF Mode is TEST?": {
+    "Parse + Filter New": {
       "main": [
         [
           {
-            "node": "Create Fake Offer (TEST)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Fetch STWDO page (LIVE)",
+            "node": "If New Offers?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Create Fake Offer (TEST)": {
+    "If New Offers?": {
       "main": [
         [
           {
-            "node": "Filter only NEW offers",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Fetch STWDO page (LIVE)": {
-      "main": [
-        [
-          {
-            "node": "Parse offers (LIVE)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse offers (LIVE)": {
-      "main": [
-        [
-          {
-            "node": "Filter only NEW offers",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Filter only NEW offers": {
-      "main": [
-        [
-          {
-            "node": "Any NEW offers?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Any NEW offers?": {
-      "main": [
-        [
-          {
-            "node": "Telegram 1 - Notify",
+            "node": "Telegram 1",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Telegram 2 - Notify",
+            "node": "Telegram 2",
             "type": "main",
             "index": 0
           }
@@ -291,10 +144,5 @@
       ]
     }
   },
-  "active": false,
-  "settings": {
-    "executionTimeout": 120,
-    "saveExecutionProgress": true,
-    "saveManualExecutions": true
-  }
+  "active": false
 }
