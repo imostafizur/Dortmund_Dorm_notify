@@ -1,148 +1,127 @@
 {
-  "name": "STWDO Dorm Alert (Stable Version)",
+  "name": "STWDO Dorm Availability -> Telegram",
   "nodes": [
     {
       "parameters": {
-        "triggerTimes": {
-          "item": [
+        "rule": {
+          "interval": [
             {
-              "mode": "everyX",
-              "value": 5,
-              "unit": "minutes"
+              "field": "minutes",
+              "interval": 10
             }
           ]
         }
       },
-      "id": "cron1",
-      "name": "Cron (every 5 min)",
-      "type": "n8n-nodes-base.cron",
-      "typeVersion": 1,
-      "position": [200, 300]
+      "id": "1b8e0c2f-2b76-4b7e-8c4a-4e0a0d6c2b11",
+      "name": "Schedule Trigger (10m)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        360,
+        300
+      ]
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "https://www.stwdo.de/wohnen/aktuelle-wohnangebote",
+        "method": "GET",
         "responseFormat": "string",
-        "headerParametersUi": {
-          "parameter": [
-            {
-              "name": "User-Agent",
-              "value": "Mozilla/5.0"
-            }
-          ]
+        "options": {
+          "followRedirect": true,
+          "timeout": 30000
         }
       },
-      "id": "http1",
-      "name": "Fetch STWDO",
+      "id": "c5e6c2cf-1e7b-4f18-9d2a-9b0e0b4af3a4",
+      "name": "Fetch STWDO Page",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [420, 300]
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        300
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const html = ($json.body || '').slice(0, 50000);\n\nconst base = 'https://www.stwdo.de';\nconst regex = /href\\s*=\\s*\"(\\/wohnen\\/aktuelle-wohnangebote\\/[^\"]+)\"/gi;\n\nconst found = new Set();\nlet match;\n\nwhile ((match = regex.exec(html)) !== null) {\n  const path = match[1];\n  if (path !== '/wohnen/aktuelle-wohnangebote') {\n    found.add(base + path);\n  }\n}\n\nconst data = getWorkflowStaticData('global');\nif (!data.seen) data.seen = {};\n\nconst newOffers = [];\n\nfor (const url of found) {\n  if (!data.seen[url]) {\n    data.seen[url] = true;\n    newOffers.push({ url });\n  }\n}\n\nreturn [{ json: { count: newOffers.length, offers: newOffers } }];"
-      },
-      "id": "code1",
-      "name": "Parse + Filter New",
+        "jsCode": "const html = ($json.body || $json.data || '').toString();\n\n// Heuristics based on the page text when no offers are available\nconst noOffersSignals = [\n  'Keine Angebote',\n  'Schade - leider haben wir aktuell keine freien Plätze',\n  'leider haben wir aktuell keine freien Plätze'\n];\n\nconst hasOffers = !noOffersSignals.some(s => html.includes(s));\n\n// Use workflow static data to avoid repeated notifications\nconst staticData = this.getWorkflowStaticData('global');\nconst lastHasOffers = staticData.lastHasOffers;\n\nstaticData.lastHasOffers = hasOffers;\nstaticData.lastCheckedAt = new Date().toISOString();\n\n// Only notify when it changes from false/undefined -> true\nif (hasOffers && !lastHasOffers) {\n  return [\n    {\n      json: {\n        hasOffers,\n        lastHasOffers,\n        url: 'https://www.stwdo.de/wohnen/aktuelle-wohnangebote',\n        checkedAt: staticData.lastCheckedAt,\n        message: `✅ Dorm offers might be AVAILABLE now!\\n\\nOpen: https://www.stwdo.de/wohnen/aktuelle-wohnangebote\\n\\nChecked at: ${staticData.lastCheckedAt}`\n      }\n    }\n  ];\n}\n\n// Otherwise stop the workflow (no output)\nreturn [];"
+      }
+      ,
+      "id": "b0f7c4b6-7f0a-4b0d-9c0b-4c1c0e1f9d78",
+      "name": "Detect Change (Notify Once)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [650, 300]
+      "position": [
+        840,
+        300
+      ]
     },
     {
       "parameters": {
-        "conditions": {
-          "number": [
-            {
-              "value1": "={{$json.count}}",
-              "operation": "larger",
-              "value2": 0
-            }
-          ]
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "PUT_YOUR_CHAT_ID_HERE",
+        "text": "={{$json.message}}",
+        "additionalFields": {
+          "disableNotification": false
         }
       },
-      "id": "if1",
-      "name": "If New Offers?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [880, 300]
-    },
-    {
-      "parameters": {
-        "operation": "sendMessage",
-        "chatId": "PUT_CHAT_ID_BOT_1",
-        "text": "={{'🏠 NEW STWDO DORM AVAILABLE!\\n\\n' + ($json.offers || []).map(o => o.url).join('\\n')}}"
-      },
-      "id": "tg1",
-      "name": "Telegram 1",
+      "id": "7f2c7e62-9c8b-4f92-a0b5-2f3f1f3d9a11",
+      "name": "Telegram Notify",
       "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1,
-      "position": [1100, 220]
-    },
-    {
-      "parameters": {
-        "operation": "sendMessage",
-        "chatId": "PUT_CHAT_ID_BOT_2",
-        "text": "={{'🏠 NEW STWDO DORM AVAILABLE!\\n\\n' + ($json.offers || []).map(o => o.url).join('\\n')}}"
-      },
-      "id": "tg2",
-      "name": "Telegram 2",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1,
-      "position": [1100, 380]
+      "typeVersion": 1.2,
+      "position": [
+        1090,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
     }
   ],
+  "pinData": {},
   "connections": {
-    "Cron (every 5 min)": {
+    "Schedule Trigger (10m)": {
       "main": [
         [
           {
-            "node": "Fetch STWDO",
+            "node": "Fetch STWDO Page",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fetch STWDO": {
+    "Fetch STWDO Page": {
       "main": [
         [
           {
-            "node": "Parse + Filter New",
+            "node": "Detect Change (Notify Once)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Parse + Filter New": {
+    "Detect Change (Notify Once)": {
       "main": [
         [
           {
-            "node": "If New Offers?",
+            "node": "Telegram Notify",
             "type": "main",
             "index": 0
           }
         ]
-      ]
-    },
-    "If New Offers?": {
-      "main": [
-        [
-          {
-            "node": "Telegram 1",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Telegram 2",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
       ]
     }
   },
-  "active": false
+  "active": false,
+  "settings": {
+    "executionTimeout": 120,
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "1"
 }
