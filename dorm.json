@@ -1,127 +1,94 @@
 {
-  "name": "STWDO Dorm Availability -> Telegram",
   "nodes": [
     {
       "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "minutes",
-              "interval": 10
-            }
-          ]
-        }
+        "options": {}
       },
-      "id": "1b8e0c2f-2b76-4b7e-8c4a-4e0a0d6c2b11",
-      "name": "Schedule Trigger (10m)",
-      "type": "n8n-nodes-base.scheduleTrigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
       "typeVersion": 1.1,
-      "position": [
-        360,
-        300
-      ]
+      "position": [0, 0],
+      "id": "chat-trigger-id",
+      "name": "Chat Trigger"
     },
     {
       "parameters": {
-        "url": "https://www.stwdo.de/wohnen/aktuelle-wohnangebote",
-        "method": "GET",
-        "responseFormat": "string",
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
         "options": {
-          "followRedirect": true,
-          "timeout": 30000
+          "systemMessage": "You are a professional software debugger. Use the Google Search tool to find exact error messages, GitHub issues, and StackOverflow answers. Provide a clear summary of the cause and a step-by-step fix."
         }
       },
-      "id": "c5e6c2cf-1e7b-4f18-9d2a-9b0e0b4af3a4",
-      "name": "Fetch STWDO Page",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        600,
-        300
-      ]
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [220, 0],
+      "id": "ai-agent-id",
+      "name": "AI Agent"
     },
     {
       "parameters": {
-        "jsCode": "const html = ($json.body || $json.data || '').toString();\n\n// Heuristics based on the page text when no offers are available\nconst noOffersSignals = [\n  'Keine Angebote',\n  'Schade - leider haben wir aktuell keine freien Plätze',\n  'leider haben wir aktuell keine freien Plätze'\n];\n\nconst hasOffers = !noOffersSignals.some(s => html.includes(s));\n\n// Use workflow static data to avoid repeated notifications\nconst staticData = this.getWorkflowStaticData('global');\nconst lastHasOffers = staticData.lastHasOffers;\n\nstaticData.lastHasOffers = hasOffers;\nstaticData.lastCheckedAt = new Date().toISOString();\n\n// Only notify when it changes from false/undefined -> true\nif (hasOffers && !lastHasOffers) {\n  return [\n    {\n      json: {\n        hasOffers,\n        lastHasOffers,\n        url: 'https://www.stwdo.de/wohnen/aktuelle-wohnangebote',\n        checkedAt: staticData.lastCheckedAt,\n        message: `✅ Dorm offers might be AVAILABLE now!\\n\\nOpen: https://www.stwdo.de/wohnen/aktuelle-wohnangebote\\n\\nChecked at: ${staticData.lastCheckedAt}`\n      }\n    }\n  ];\n}\n\n// Otherwise stop the workflow (no output)\nreturn [];"
-      }
-      ,
-      "id": "b0f7c4b6-7f0a-4b0d-9c0b-4c1c0e1f9d78",
-      "name": "Detect Change (Notify Once)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        840,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
-        "chatId": "PUT_YOUR_CHAT_ID_HERE",
-        "text": "={{$json.message}}",
-        "additionalFields": {
-          "disableNotification": false
-        }
+        "model": "google/gemini-2.0-flash-001",
+        "options": {}
       },
-      "id": "7f2c7e62-9c8b-4f92-a0b5-2f3f1f3d9a11",
-      "name": "Telegram Notify",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        1090,
-        300
-      ],
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [160, 220],
+      "id": "openrouter-id",
+      "name": "OpenRouter Chat Model",
       "credentials": {
-        "telegramApi": {
-          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
-          "name": "Telegram account"
+        "openRouterApi": {
+          "id": "your-credential-id",
+          "name": "OpenRouter API Key"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolGoogleSearch",
+      "typeVersion": 1,
+      "position": [380, 220],
+      "id": "google-search-tool-id",
+      "name": "Google Search",
+      "credentials": {
+        "googleSearchApi": {
+          "id": "your-google-id",
+          "name": "Google Search API Key"
         }
       }
     }
   ],
-  "pinData": {},
   "connections": {
-    "Schedule Trigger (10m)": {
+    "Chat Trigger": {
       "main": [
         [
           {
-            "node": "Fetch STWDO Page",
+            "node": "AI Agent",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fetch STWDO Page": {
-      "main": [
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
         [
           {
-            "node": "Detect Change (Notify Once)",
-            "type": "main",
+            "node": "AI Agent",
+            "type": "ai_languageModel",
             "index": 0
           }
         ]
       ]
     },
-    "Detect Change (Notify Once)": {
-      "main": [
+    "Google Search": {
+      "ai_tool": [
         [
           {
-            "node": "Telegram Notify",
-            "type": "main",
+            "node": "AI Agent",
+            "type": "ai_tool",
             "index": 0
           }
         ]
       ]
     }
-  },
-  "active": false,
-  "settings": {
-    "executionTimeout": 120,
-    "saveExecutionProgress": true,
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
-  },
-  "versionId": "1"
+  }
 }
