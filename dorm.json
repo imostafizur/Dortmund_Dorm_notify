@@ -12,21 +12,10 @@
     },
     {
       "parameters": {
-        "path": "math-debug",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [0, -180],
-      "id": "webhook-trigger-id",
-      "name": "Webhook Trigger"
-    },
-    {
-      "parameters": {
         "promptType": "define",
-        "text": "={{ $json.chatInput || $json.body.query }}",
+        "text": "={{ $json.chatInput }}",
         "options": {
-          "systemMessage": "You are a professional software debugger and mathematician. Use Google Search for errors and the Calculator tool for any math operations. Provide clear summaries and step-by-step fixes."
+          "systemMessage": "You are an autonomous Senior Developer. Your goal is to write code that works. \n1. Write the code.\n2. Use the Code Tool to run it.\n3. If it fails or the output is wrong, analyze the error and FIX it.\n4. Repeat until the output is 100% correct.\n5. Only provide the final working code and the successful output."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -38,7 +27,9 @@
     {
       "parameters": {
         "model": "google/gemini-2.0-flash-001",
-        "options": {}
+        "options": {
+          "temperature": 0.2
+        }
       },
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
       "typeVersion": 1,
@@ -47,36 +38,25 @@
       "name": "OpenRouter Chat Model"
     },
     {
-      "parameters": {},
-      "type": "@n8n/n8n-nodes-langchain.toolGoogleSearch",
+      "parameters": {
+        "name": "code_interpreter",
+        "description": "Run Python code and return the output or error. Use this to test your logic."
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
       "typeVersion": 1,
-      "position": [380, 220],
-      "id": "google-search-tool-id",
-      "name": "Google Search"
-    },
-    {
-      "parameters": {},
-      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
-      "typeVersion": 1,
-      "position": [560, 220],
-      "id": "calculator-tool-id",
-      "name": "Calculator"
+      "position": [500, 220],
+      "id": "code-tool-id",
+      "name": "Code Tool"
     }
   ],
   "connections": {
     "Chat Trigger": {
       "main": [[{ "node": "AI Agent", "type": "main", "index": 0 }]]
     },
-    "Webhook Trigger": {
-      "main": [[{ "node": "AI Agent", "type": "main", "index": 0 }]]
-    },
     "OpenRouter Chat Model": {
       "ai_languageModel": [[{ "node": "AI Agent", "type": "ai_languageModel", "index": 0 }]]
     },
-    "Google Search": {
-      "ai_tool": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
-    },
-    "Calculator": {
+    "Code Tool": {
       "ai_tool": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
     }
   }
