@@ -12,15 +12,26 @@
     },
     {
       "parameters": {
+        "path": "math-debug",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, -180],
+      "id": "webhook-trigger-id",
+      "name": "Webhook Trigger"
+    },
+    {
+      "parameters": {
         "promptType": "define",
-        "text": "={{ $json.chatInput }}",
+        "text": "={{ $json.chatInput || $json.body.query }}",
         "options": {
-          "systemMessage": "You are a professional software debugger. Use the Google Search tool to find exact error messages, GitHub issues, and StackOverflow answers. Provide a clear summary of the cause and a step-by-step fix."
+          "systemMessage": "You are a professional software debugger and mathematician. Use Google Search for errors and the Calculator tool for any math operations. Provide clear summaries and step-by-step fixes."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.7,
-      "position": [220, 0],
+      "position": [340, 0],
       "id": "ai-agent-id",
       "name": "AI Agent"
     },
@@ -33,13 +44,7 @@
       "typeVersion": 1,
       "position": [160, 220],
       "id": "openrouter-id",
-      "name": "OpenRouter Chat Model",
-      "credentials": {
-        "openRouterApi": {
-          "id": "your-credential-id",
-          "name": "OpenRouter API Key"
-        }
-      }
+      "name": "OpenRouter Chat Model"
     },
     {
       "parameters": {},
@@ -47,48 +52,32 @@
       "typeVersion": 1,
       "position": [380, 220],
       "id": "google-search-tool-id",
-      "name": "Google Search",
-      "credentials": {
-        "googleSearchApi": {
-          "id": "your-google-id",
-          "name": "Google Search API Key"
-        }
-      }
+      "name": "Google Search"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [560, 220],
+      "id": "calculator-tool-id",
+      "name": "Calculator"
     }
   ],
   "connections": {
     "Chat Trigger": {
-      "main": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "AI Agent", "type": "main", "index": 0 }]]
+    },
+    "Webhook Trigger": {
+      "main": [[{ "node": "AI Agent", "type": "main", "index": 0 }]]
     },
     "OpenRouter Chat Model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
+      "ai_languageModel": [[{ "node": "AI Agent", "type": "ai_languageModel", "index": 0 }]]
     },
     "Google Search": {
-      "ai_tool": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
+      "ai_tool": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Calculator": {
+      "ai_tool": [[{ "node": "AI Agent", "type": "ai_tool", "index": 0 }]]
     }
   }
 }
